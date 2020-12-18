@@ -1,3 +1,5 @@
+use web_sys::console;
+
 mod palette;
 
 pub struct Ppu {
@@ -205,7 +207,7 @@ pub fn is_draw_timing(ppu: &Ppu) -> bool {
 
 pub fn draw_to_canvas(canvas: &mut Vec<u8>, ppu: &mut Ppu) {
     ppu.cycle = 0;
-    // println!("ppu controller:{:02X} mask:{:02X} status:{:02X}", ppu.reg_controller, ppu.reg_mask, ppu.reg_status);
+    console::log_1(&format!("ppu controller:{:02X} mask:{:02X} status:{:02X}", ppu.reg_controller, ppu.reg_mask, ppu.reg_status).into());
     for y in 0..(240/8) {
         for x in 0..(256/8) {
             let bgaddr = ADDR_BG0 + y * 32 + x;
@@ -222,7 +224,7 @@ pub fn draw_to_canvas(canvas: &mut Vec<u8>, ppu: &mut Ppu) {
         let x = ppu.oam[base + 3];
 
         let base_addr = (((ppu.reg_controller >> 3) & 1) as u16) * 0x1000;
-        // println!("put bg x:{} y:{} addr:{:04X}", base_x, base_y, base_addr);
+        console::log_1(&format!("put bg x:{} y:{} addr:{:04X}", x, y, base_addr).into());
         put_tile(canvas, ppu, x as i32, y as i32, base_addr, tile, 0x10);
     }
 }

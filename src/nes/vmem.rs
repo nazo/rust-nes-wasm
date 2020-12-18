@@ -39,7 +39,7 @@ pub fn read_mem(mem: &mut Vmem, addr: u16) -> u8 {
 }
 
 pub fn write_mem(mem: &mut Vmem, addr: u16, value: u8) {
-    // println!("write {:04X} value:{:02X}", addr, value);
+    // console::log_1(&format!("write {:04X} value:{:02X}", addr, value).into());
     if (addr >= 0x2000 && addr < 0x2008) || addr == 0x4014 {
         // ppu
         ppu::write_io(&mut mem.ppu, addr, value);

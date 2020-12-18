@@ -35,7 +35,7 @@ async fn load_rom() ->Result<Vec<u8>, JsValue> {
     let mut opts = RequestInit::new();
     opts.method("GET");
 
-    let url = "nestest.nes";
+    let url = "sample1.nes";
 
     let request = Request::new_with_str_and_init(&url, &opts)?;
 
@@ -69,32 +69,10 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
         .expect("should register `requestAnimationFrame` OK");
 }
 
-struct Scene {
-    count: u32
-}
-
-#[inline]
-fn put_pixel(data: &mut wasm_bindgen::Clamped<Vec<u8>>, x: usize, y: usize, color: u32) {
-    let pos: usize = ((y * 256) + x) * 4;
-    data[pos + 0] = 0xFF;
-    data[pos + 1] = 0x00;
-    data[pos + 2] = 0x00;
-    data[pos + 3] = 0xFF;
-}
-
-fn drawloop(scene: &mut Scene, data: &mut wasm_bindgen::Clamped<Vec<u8>>, context: &web_sys::CanvasRenderingContext2d) {
-    for y in 0..224 {
-        for x in 0..256 {
-            put_pixel(data, x, y, 0xFF0000);
-        }
-    }
+fn drawloop(data: &mut wasm_bindgen::Clamped<Vec<u8>>, context: &web_sys::CanvasRenderingContext2d) {
     let buffer = web_sys::ImageData::new_with_u8_clamped_array_and_sh(wasm_bindgen::Clamped(data), 256, 240).unwrap();
     // context.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(buffer, 0.0, 0.0, 0.0, 0.0, 256.0, 224.0).unwrap();
     context.put_image_data(&buffer, 0.0, 0.0).unwrap();
-
-    scene.count = (scene.count + 1) % 0xFFFF;
-
-    console::log_2(&"count = ".into(), &scene.count.into());
 }
 
 // This is like the `main` function, except for JavaScript.
@@ -118,6 +96,9 @@ pub async fn main_js() -> Result<(), JsValue> {
         .map_err(|_| ())
         .unwrap();
 
+    canvas.set_width(256);
+    canvas.set_height(240);
+
     let context = canvas
         .get_context("2d")
         .unwrap()
@@ -128,30 +109,33 @@ pub async fn main_js() -> Result<(), JsValue> {
     let romdata = load_rom().await?;
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
-    let mut data = context.get_image_data(0.0, 0.0, 256.0, 240.0).unwrap().data().clone();
+    let mut canvas_buffer = context.get_image_data(0.0, 0.0, 256.0, 240.0).unwrap().data().clone();
     let nes_rom = nes::rom::load_nes(&romdata);
     let mut cpu = nes::cpu::new_cpu();
     let mut ppu = nes::ppu::new_ppu(&nes_rom.character_rom.data);
     let mut mem = nes::memory::new_memory(&nes_rom.program_rom.data);
-    let mut scene = Scene{count: 0};
     let mut ppu_cycle = 2;
 
     *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
         let mut vmem = nes::vmem::new_vmem(&mut mem, &mut ppu);
-        nes::cpu::run(&mut cpu, &mut vmem);
-        ppu_cycle = ppu_cycle - 1;
-        if ppu_cycle <= 0 {
-            nes::ppu::run(&mut vmem.ppu);
-            ppu_cycle = 2;
-        }
-        
-        if nes::ppu::is_draw_timing(vmem.ppu) {
-            nes::ppu::draw_to_canvas(&mut data, &mut vmem.ppu);
-            drawloop(&mut scene, &mut data, &context);
-        }
+        loop {
+            nes::cpu::run(&mut cpu, &mut vmem);
+            ppu_cycle = ppu_cycle - 1;
+            if ppu_cycle <= 0 {
+                nes::ppu::run(&mut vmem.ppu);
+                ppu_cycle = 2;
+            }
+            
+            if nes::ppu::is_draw_timing(vmem.ppu) {
+                nes::ppu::draw_to_canvas(&mut canvas_buffer, &mut vmem.ppu);
+                drawloop(&mut canvas_buffer, &context);
 
-        // Schedule ourself for another requestAnimationFrame callback.
-        request_animation_frame(f.borrow().as_ref().unwrap());
+                // Schedule ourself for another requestAnimationFrame callback.
+                request_animation_frame(f.borrow().as_ref().unwrap());
+
+                break;
+            }
+        }
     }) as Box<dyn FnMut()>));
 
     request_animation_frame(g.borrow().as_ref().unwrap());
