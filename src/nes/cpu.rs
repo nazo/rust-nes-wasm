@@ -1,5 +1,5 @@
 use super::vmem;
-use log::{info, trace, warn};
+use web_sys::console;
 
 mod opcode;
 
@@ -121,7 +121,7 @@ pub fn run(cpu: &mut Cpu, mem: &mut vmem::Vmem) {
     let op = &opcode::OPCODE_TABLE[code as usize];
 
     // println!("{:04X}  {}                       A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", pc, opcode::OPCODE_DEBUG_SYMBOL[code as usize], cpu.reg_a, cpu.reg_x, cpu.reg_y, cpu.reg_p, cpu.reg_s);
-    println!("{:04X} {:02X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", pc, code, cpu.reg_a, cpu.reg_x, cpu.reg_y, cpu.reg_p, cpu.reg_s);
+    console::log_1(&format!("{:04X} {:02X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", pc, code, cpu.reg_a, cpu.reg_x, cpu.reg_y, cpu.reg_p, cpu.reg_s).into());
 
     // opcode::debug_opcode(code);
     exec_instructions(cpu, mem, op);
@@ -191,7 +191,7 @@ fn read_by_addressing(cpu: &mut Cpu, mem: &mut vmem::Vmem, op: &opcode::Opcode) 
 fn exec_instructions(cpu: &mut Cpu, mem: &mut vmem::Vmem, op: &opcode::Opcode) {
     let mut data = read_by_addressing(cpu, mem, op);
     let relative = (data as u8) as i8;
-    // println!("data: {:04X}", data);
+    console::log_1(&format!("data {:04X}", data).into());
     match op.code {
         opcode::OPCODE_LDA => {
             if op.addressing != opcode::ADDRESSING_IMMEDIATE {

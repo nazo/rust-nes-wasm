@@ -35,7 +35,7 @@ async fn load_rom() ->Result<Vec<u8>, JsValue> {
     let mut opts = RequestInit::new();
     opts.method("GET");
 
-    let url = "sample1.nes";
+    let url = "nestest.nes";
 
     let request = Request::new_with_str_and_init(&url, &opts)?;
 
@@ -65,11 +65,12 @@ fn window() -> web_sys::Window {
 
 fn request_animation_frame(f: &Closure<dyn FnMut()>) {
     window()
-        .request_animation_frame(f.as_ref().unchecked_ref())
+        .set_timeout_with_callback_and_timeout_and_arguments_0(f.as_ref().unchecked_ref(), 0)
+        // .request_animation_frame(f.as_ref().unchecked_ref())
         .expect("should register `requestAnimationFrame` OK");
 }
 
-fn drawloop(data: &mut wasm_bindgen::Clamped<Vec<u8>>, context: &web_sys::CanvasRenderingContext2d) {
+fn render_to_canvas(data: &mut wasm_bindgen::Clamped<Vec<u8>>, context: &web_sys::CanvasRenderingContext2d) {
     let buffer = web_sys::ImageData::new_with_u8_clamped_array_and_sh(wasm_bindgen::Clamped(data), 256, 240).unwrap();
     // context.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(buffer, 0.0, 0.0, 0.0, 0.0, 256.0, 224.0).unwrap();
     context.put_image_data(&buffer, 0.0, 0.0).unwrap();
@@ -114,25 +115,22 @@ pub async fn main_js() -> Result<(), JsValue> {
     let mut cpu = nes::cpu::new_cpu();
     let mut ppu = nes::ppu::new_ppu(&nes_rom.character_rom.data);
     let mut mem = nes::memory::new_memory(&nes_rom.program_rom.data);
-    let mut ppu_cycle = 2;
+
+    let mut vmem = nes::vmem::new_vmem(&mut mem, &mut ppu);
+    nes::cpu::reset(&mut cpu, &mut vmem);
 
     *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
         let mut vmem = nes::vmem::new_vmem(&mut mem, &mut ppu);
         loop {
             nes::cpu::run(&mut cpu, &mut vmem);
-            ppu_cycle = ppu_cycle - 1;
-            if ppu_cycle <= 0 {
-                nes::ppu::run(&mut vmem.ppu);
-                ppu_cycle = 2;
-            }
+            nes::ppu::run(&mut canvas_buffer, &mut vmem.ppu);
             
             if nes::ppu::is_draw_timing(vmem.ppu) {
-                nes::ppu::draw_to_canvas(&mut canvas_buffer, &mut vmem.ppu);
-                drawloop(&mut canvas_buffer, &context);
+                render_to_canvas(&mut canvas_buffer, &context);
+                nes::ppu::check_drawn(&mut vmem.ppu);
 
                 // Schedule ourself for another requestAnimationFrame callback.
                 request_animation_frame(f.borrow().as_ref().unwrap());
-
                 break;
             }
         }
